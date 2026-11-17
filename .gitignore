@@ -1,0 +1,4 @@
+﻿# Letras ficam só no tablet e no backup: nunca publicar
+backups/
+versoes/
+_teste-backup.json
