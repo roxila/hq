@@ -436,7 +436,7 @@
         <button class="primary" id="find-lyr">🔎 Procurar a letra na internet</button>
         <button id="paste-lyr">📋 Colar a letra</button>
       </div>
-      <p class="hint">Abra a letra, selecione e copie. Depois volte aqui e toque em <b>Colar a letra</b>.</p>
+      <p class="hint">Abra a letra e copie (ou use o botão <b>📋 Copiar letra</b> dos favoritos). Depois volte aqui e toque em <b>Colar a letra</b> — no computador, é só apertar <b>Ctrl+V</b>.</p>
     </div>
   </main>
   <div class="readbar">
@@ -747,7 +747,34 @@ $('prev').onclick = () => step(-1);
 $('next').onclick = () => step(1);
 $('read-back').onclick = back;
 $('read-edit').onclick = () => openSongEditor(ctx.songId);
-$('paste-lyr').onclick = () => { openSongEditor(ctx.songId); setTimeout(() => $('f-lyrics').focus(), 50); };
+// cola a letra copiada direto na música aberta (sem passar pelo editor)
+function pasteIntoCurrent(text) {
+  const s = song(ctx.songId); if (!s || !text || !text.trim()) return false;
+  const m = text.match(/^\s*\[letras\.mus\.br\] ?([^\r\n]*)\r?\n/);
+  if (m) {
+    text = text.slice(m[0].length);
+    const base = t => norm(t).replace(/\(.*?\)/g, '').replace(/[^a-z0-9]/g, '');
+    const a = base(m[1]), b = base(s.title);
+    if (a && b && !a.includes(b) && !b.includes(a) &&
+        !confirm(`A letra copiada é de "${m[1]}", mas esta música é "${s.title}".\n\nSalvar mesmo assim?`)) return true;
+  }
+  const lyr = stripHeader(text, s);
+  if (lyr.length < 20) { toast('O texto está muito curto. Copie a letra inteira.'); return true; }
+  s.lyrics = lyr; save(); toast('Letra salva!');
+  openSong(ctx.list, ctx.pos, ctx.setId, false);
+  return true;
+}
+$('paste-lyr').onclick = async () => {
+  try { const t = await navigator.clipboard.readText(); if (t && t.trim()) return pasteIntoCurrent(t); toast('Nada copiado ainda.'); }
+  catch (e) { openSongEditor(ctx.songId); setTimeout(() => $('f-lyrics').focus(), 50); } // sem permissão: cola manual no editor
+};
+// Ctrl+V na tela de uma música sem letra = salva a letra
+document.addEventListener('paste', e => {
+  if ($('v-read').classList.contains('hidden') || /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  const s = song(ctx.songId); if (!s || s.lyrics) return;
+  const t = e.clipboardData && e.clipboardData.getData('text');
+  if (t && t.trim()) { e.preventDefault(); pasteIntoCurrent(t); }
+});
 $('find-lyr').onclick = () => { const s = song(ctx.songId);
   window.open(searchUrl(s), 'busca-letra'); };
 function applyFs() { document.documentElement.style.setProperty('--fs', db.fs + 'px'); }
