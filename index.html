@@ -353,6 +353,11 @@
   .tabs.right::before { transform: translateX(calc(100% + 4px)); }
   .tabs button.on { background: transparent; box-shadow: none; }
 
+  .restore-hint { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+    padding: 16px 18px; margin-bottom: 16px; border-radius: 16px; border: 1px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, var(--panel)); animation: viewIn .35s both; }
+  .restore-hint .sub { color: var(--muted); font-size: 14px; }
+  .restore-hint code { color: var(--accent); }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
@@ -379,6 +384,11 @@
     <div class="tabs">
       <button id="tab-songs" class="on">Músicas</button>
       <button id="tab-sets">Setlists</button>
+    </div>
+    <div id="restore-hint" class="restore-hint hidden">
+      <div><b>Este aparelho ainda não tem as letras.</b><br>
+        <span class="sub">Coloque aqui o arquivo de backup (<code>hq-backup-ATUAL.json</code>) que veio do computador.</span></div>
+      <button class="primary" id="restore-btn">📂 Restaurar backup</button>
     </div>
     <div id="songs-pane">
       <input class="search" id="search" type="search" placeholder="Buscar música, artista ou trecho da letra…">
@@ -565,7 +575,7 @@
       </ol>
       <a id="bm-link" class="bm-link" href="#">📋 Copiar letra</a>
     </div>
-    <input type="file" id="import-file" accept=".json,application/json" class="hidden">
+    <input type="file" id="import-file" class="hidden">
     <p class="hint" style="margin-top:20px">As letras ficam guardadas só neste tablet. Faça um backup de vez em quando e guarde o arquivo no Google Drive ou no computador. Se o app for desinstalado ou os dados do navegador forem limpos, é o backup que salva tudo.</p>
     <p class="hint" id="m-info"></p>
   </main>
@@ -626,6 +636,8 @@ function renderHome(anim = false) {
   $('f-missing').textContent = `Sem letra (${missing})`;
   $('f-all').textContent = `Todas (${db.songs.length})`;
   $('f-fill').classList.toggle('hidden', !missing);
+  // aparelho novo (quase tudo sem letra): mostra o atalho para restaurar o backup
+  $('restore-hint').classList.toggle('hidden', !(db.songs.length && missing / db.songs.length > 0.9));
   $('f-all').classList.toggle('on', !onlyMissing); $('f-missing').classList.toggle('on', onlyMissing);
   const songs = [...db.songs].sort((a, b) => sortKey(a.title).localeCompare(sortKey(b.title), 'pt-BR'))
     .filter(s => !onlyMissing || !s.lyrics)
@@ -967,6 +979,7 @@ $('m-export').onclick = () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 $('m-import').onclick = () => $('import-file').click();
+$('restore-btn').onclick = () => $('import-file').click();
 $('import-file').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   try { const d = JSON.parse(await f.text()); if (!Array.isArray(d.songs)) throw 0;
