@@ -393,6 +393,14 @@
     border: 2px dashed var(--chip); filter: brightness(1.25); }
   .blk-band span { opacity: .85; } .blk-band b { font-size: 16px; }
   .blk-band em { margin-left: auto; font-style: normal; font-weight: 700; font-size: 12px; opacity: .8; }
+  /* nota da música no setlist */
+  .read-note { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 18px; padding: 12px 14px; border-radius: 12px;
+    font-size: 18px; font-weight: 700; line-height: 1.35; color: var(--text); white-space: pre-wrap;
+    background: color-mix(in srgb, var(--note) 16%, transparent); border: 2px solid var(--note); animation: viewIn .35s both; }
+  .read-note .rn-ico { flex: none; }
+  .sv-songnote { display: block; margin-top: 2px; font-size: 14px; font-weight: 700; color: var(--note); }
+  .se-item .t { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .se-item .se-note { width: 100%; font-size: 14px; padding: 6px 10px; color: var(--note); }
   #v-read.in-set .read-body { border-left: 4px solid var(--chip); padding-left: 18px; padding-bottom: 4px; }
   #lyrics { padding-bottom: 0; }
   #v-read main { padding-bottom: 45vh; } /* espaço para a última linha não ficar atrás dos botões */
@@ -468,6 +476,7 @@
     <div class="read-body">
       <p id="read-artist"></p>
       <div class="blk-band start hidden" id="blk-start"></div>
+      <div class="read-note hidden" id="read-note"></div>
       <div id="lyrics"></div>
       <div class="blk-band end hidden" id="blk-end"></div>
     </div>
@@ -784,6 +793,9 @@ function openSong(list, pos, setId, push = true, dir = 0) {
   $('blk-start').innerHTML = top;
   $('blk-start').classList.toggle('hidden', !top);
   $('blk-start').classList.toggle('last', !!(setId && it.last && !it.first));
+  // nota desta música neste setlist (fica fora do texto da letra)
+  $('read-note').innerHTML = setId && it.note ? `<span class="rn-ico">📝</span><span>${esc(it.note)}</span>` : '';
+  $('read-note').classList.toggle('hidden', !(setId && it.note));
   $('blk-end').innerHTML = setId && it.last && it.block
     ? `<span>■ Fim</span><b>${esc(it.block)}</b>${nextB ? `<em>próximo: ${esc(nextB)}</em>` : '<em>fim do show</em>'}` : '';
   $('blk-end').classList.toggle('hidden', !(setId && it.last && it.block));
@@ -933,7 +945,7 @@ function setSongs(st) {
   return st.blocks.flatMap((b, bi) => {
     const its = b.items.filter(it => song(it.id));
     return its.map((it, i) => ({ id: it.id, block: b.name, bi, color: blockColor(st, bi),
-      first: i === 0, last: i === its.length - 1 }));
+      first: i === 0, last: i === its.length - 1, note: (it.note || '').trim() }));
   });
 }
 // cada bloco tem a sua cor: o 1º usa a cor do setlist e os outros são sorteados.
@@ -983,7 +995,8 @@ function openSetView(id, push = true) {
       <div class="sv-items">${b.items.map(it => {
         const s = song(it.id); if (!s) return '';
         const pos = n++;
-        return `<button class="sv-song" data-pos="${pos}"><span class="n">${pos + 1}</span><span>${esc(s.title)}${s.lyrics ? '' : ' <span class="nolyr-tag">(sem letra)</span>'}</span></button>`;
+        const note = (it.note || '').trim();
+        return `<button class="sv-song" data-pos="${pos}"><span class="n">${pos + 1}</span><span>${esc(s.title)}${s.lyrics ? '' : ' <span class="nolyr-tag">(sem letra)</span>'}${note ? `<span class="sv-songnote">📝 ${esc(note)}</span>` : ''}</span></button>`;
       }).join('') || '<div class="hint">Bloco vazio</div>'}</div></div>`).join('')
     || '<div class="empty">Setlist vazio. Toque em <b>Editar</b> para montar os blocos.</div>';
   $('sv-blocks').classList.toggle('anim', push);
@@ -1032,7 +1045,8 @@ function renderSetEditor() {
       <div class="se-items">${b.items.map((it, ii) => {
         const btns = `<button data-act="up" data-b="${bi}" data-i="${ii}">↑</button><button data-act="down" data-b="${bi}" data-i="${ii}">↓</button><button data-act="rm" data-b="${bi}" data-i="${ii}">✕</button>`;
         const s = song(it.id);
-        return `<div class="se-item"><span class="t">${esc(s ? s.title : '(música apagada)')}</span>${btns}</div>`;
+        return `<div class="se-item"><div class="t">${esc(s ? s.title : '(música apagada)')}
+          <input type="text" class="se-note" data-nb="${bi}" data-ni="${ii}" value="${esc(it.note || '')}" placeholder="📝 Nota (opcional) — ex.: entra só voz e bateria" maxlength="200"></div>${btns}</div>`;
       }).join('') || '<div class="hint">Nenhuma música neste bloco ainda.</div>'}</div>
       <div class="se-add">
         <button class="primary" data-act="addsong" data-b="${bi}">＋ Música</button>
@@ -1042,6 +1056,7 @@ function renderSetEditor() {
 $('se-blocks').addEventListener('input', e => {
   const d = e.target.dataset;
   if (d.bname !== undefined) draft.blocks[+d.bname].name = e.target.value;
+  if (d.nb !== undefined) { const it = draft.blocks[+d.nb].items[+d.ni]; const v = e.target.value; if (v.trim()) it.note = v; else delete it.note; }
 });
 $('se-blocks').onclick = e => {
   const btn = e.target.closest('button[data-act]'); if (!btn) return;
