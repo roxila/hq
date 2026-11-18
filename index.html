@@ -1452,6 +1452,12 @@ function needToken() {
   $('sync-box').querySelector('details').open = true; $('sync-token').focus();
   return true;
 }
+// Tela sempre em pé (não gira quando o aparelho está deitado). Funciona no app instalado na tela inicial;
+// no navegador comum o Android não deixa travar.
+function lockPortrait() { try { const p = screen.orientation && screen.orientation.lock && screen.orientation.lock('portrait'); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+lockPortrait();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) lockPortrait(); });
+
 // Mantém a barra de baixo (Anterior/Próxima) sempre inteira na tela, mesmo quando a barra do navegador
 // ou a barra de tarefas do Android cobre o fim da página.
 (function fixBottomBar() {
