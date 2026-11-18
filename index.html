@@ -933,11 +933,40 @@ function setSongs(st) {
       first: i === 0, last: i === its.length - 1 }));
   });
 }
-// cada bloco tem a sua cor: começa na cor do setlist e vai andando pela paleta
-function blockColor(st, bi) {
-  const start = Math.max(0, COLORS.indexOf(st.color || COLORS[0]));
-  return COLORS[(start + bi) % COLORS.length];
+// cada bloco tem a sua cor: o 1º usa a cor do setlist e os outros são sorteados.
+// O sorteio é fixo por setlist (mesma ordem sempre e em todos os aparelhos) e só repete
+// uma cor depois de usar todas; duas vizinhas nunca são iguais.
+const BLOCK_COLORS = [...COLORS, '#4f46e5', '#0d9488', '#65a30d', '#c026d3'];
+function seeded(seed) {
+  let h = 2166136261; for (const ch of seed) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return (h >>> 0) / 4294967296; };
 }
+function hue(hex) {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; if (!d) return 0;
+  const h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+}
+function hueDist(a, b) { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
+const _bcCache = {};
+function blockColors(st, n) {
+  const base = st.color || COLORS[0], key = (st.id || st.name) + base + n;
+  if (_bcCache[key]) return _bcCache[key];
+  const rnd = seeded((st.id || st.name) + '|' + base); // não depende do nº de blocos: adicionar um bloco não muda os outros
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const out = [base];
+  let bag = shuffle(BLOCK_COLORS.filter(c => c !== base));
+  while (out.length < n) {
+    if (!bag.length) bag = shuffle([...BLOCK_COLORS]);
+    // pega a primeira do saco com tom bem diferente da cor do bloco anterior
+    const prev = hue(out[out.length - 1]);
+    let i = bag.findIndex(c => hueDist(hue(c), prev) >= 45);
+    if (i < 0) i = bag.findIndex(c => c !== out[out.length - 1]);
+    out.push(bag.splice(Math.max(0, i), 1)[0]);
+  }
+  return (_bcCache[key] = out);
+}
+function blockColor(st, bi) { return blockColors(st, Math.max(st.blocks.length, bi + 1))[bi]; }
 let viewSet = null;
 function openSetView(id, push = true) {
   const st = db.sets.find(x => x.id === id); if (!st) return;
