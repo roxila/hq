@@ -386,7 +386,7 @@
     border: 2px dashed var(--chip); filter: brightness(1.25); }
   .blk-band span { opacity: .85; } .blk-band b { font-size: 16px; }
   .blk-band em { margin-left: auto; font-style: normal; font-weight: 700; font-size: 12px; opacity: .8; }
-  #v-read.in-set main { border-left: 4px solid var(--chip); padding-left: 22px; }
+  #v-read.in-set .read-body { border-left: 4px solid var(--chip); padding-left: 18px; padding-bottom: 4px; }
   #lyrics { padding-bottom: 0; }
   #v-read main { padding-bottom: 45vh; } /* espaço para a última linha não ficar atrás dos botões */
   @keyframes blkPop { 0% { transform: scale(1); } 35% { transform: scale(1.18); } 100% { transform: scale(1); } }
@@ -456,10 +456,12 @@
     <div class="progress" id="read-progress"></div>
   </header>
   <main>
-    <p id="read-artist"></p>
-    <div class="blk-band start hidden" id="blk-start"></div>
-    <div id="lyrics"></div>
-    <div class="blk-band end hidden" id="blk-end"></div>
+    <div class="read-body">
+      <p id="read-artist"></p>
+      <div class="blk-band start hidden" id="blk-start"></div>
+      <div id="lyrics"></div>
+      <div class="blk-band end hidden" id="blk-end"></div>
+    </div>
     <div id="nolyr" class="nolyr hidden">
       Esta música ainda não tem letra.
       <div class="row">

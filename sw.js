@@ -1,7 +1,7 @@
 // Guarda o app no aparelho para funcionar sem internet.
 // Com internet: sempre busca a versão mais nova (e atualiza a cópia guardada).
 // Sem internet: usa a cópia guardada.
-const CACHE = 'hq-v15';
+const CACHE = 'hq-v16';
 const FILES = ['./', 'index.html', 'musicas-iniciais.js', 'copiar-letra.js', 'setlists-prontos.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
