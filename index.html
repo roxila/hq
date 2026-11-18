@@ -1292,8 +1292,15 @@ $('sync-save').onclick = async () => {
   // primeira vez neste aparelho: baixa o que está no GitHub
   sync.sha = null; await pullNow(true);
 };
-$('sync-pull').onclick = () => pullNow(true);
-$('sync-push').onclick = () => pushNow(true);
+function needToken() {
+  if (sync.token) return false;
+  toast('Primeiro cole a chave do GitHub e toque em "Salvar chave e sincronizar".');
+  $('sync-status').textContent = 'Sem chave: nada foi enviado nem baixado. Veja "Como criar a chave" abaixo.';
+  $('sync-box').querySelector('details').open = true; $('sync-token').focus();
+  return true;
+}
+$('sync-pull').onclick = () => { if (!needToken()) pullNow(true); };
+$('sync-push').onclick = () => { if (!needToken()) pushNow(true); };
 $('sync-off').onclick = () => { if (!confirm('Desligar a sincronização neste aparelho? Os dados continuam aqui.')) return;
   sync = { repo: sync.repo, path: sync.path }; saveSyncCfg(); syncUI(); };
 $('sync-chip').onclick = () => sync.dirty ? pushNow(true) : pullNow(true);
