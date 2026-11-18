@@ -353,6 +353,16 @@
   .tabs.right::before { transform: translateX(calc(100% + 4px)); }
   .tabs button.on { background: transparent; box-shadow: none; }
 
+  .sync-chip { min-height: 34px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700;
+    background: var(--panel); border: 1px solid var(--line); color: var(--muted); margin-right: 4px; white-space: nowrap; }
+  .sync-chip.ok { color: #22c55e; border-color: color-mix(in srgb, #22c55e 45%, var(--line)); }
+  .sync-chip.busy { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .sync-chip.busy::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%;
+    border: 2px solid currentColor; border-right-color: transparent; vertical-align: -1px; animation: spin .8s linear infinite; }
+  .sync-chip.err { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #sync-box details { margin-top: 10px; } #sync-box summary { cursor: pointer; color: var(--accent); font-weight: 700; }
+  #sync-box a { color: var(--accent); }
   .restore-hint { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
     padding: 16px 18px; margin-bottom: 16px; border-radius: 16px; border: 1px solid var(--accent);
     background: color-mix(in srgb, var(--accent) 12%, var(--panel)); animation: viewIn .35s both; }
@@ -378,6 +388,8 @@
 <section id="v-home">
   <header class="brand-bar">
     <div class="brand"><span class="logo">HQ</span><span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="brand-sub">letras &amp; setlists</span></div>
+    <span style="flex:1"></span>
+    <button class="sync-chip hidden" id="sync-chip" title="Sincronização"></button>
     <button class="ghost icon-btn" id="btn-menu" aria-label="Opções">⋮</button>
   </header>
   <main>
@@ -565,6 +577,30 @@
       <button class="item" id="m-check">🩺 Verificar letras</button>
     </div>
     <div id="check-report" class="check hidden"></div>
+    <div class="bm-box" id="sync-box">
+      <h2>☁️ Sincronizar entre aparelhos</h2>
+      <p class="hint">Mantém PC e tablet iguais pelo seu repositório <b>privado</b> do GitHub (<code id="sync-repo-label"></code>).
+        Mudou algo num aparelho, o outro recebe quando abrir o HQ com internet. Sem internet, tudo continua funcionando.</p>
+      <label for="sync-token">Chave do GitHub (token)</label>
+      <input type="password" id="sync-token" class="date-in" placeholder="github_pat_…" autocomplete="off">
+      <div class="row">
+        <button class="primary" id="sync-save">Salvar chave e sincronizar</button>
+        <button id="sync-pull">⬇ Baixar agora</button>
+        <button id="sync-push">⬆ Enviar agora</button>
+        <button class="danger" id="sync-off">Desligar</button>
+      </div>
+      <p class="hint" id="sync-status"></p>
+      <details class="hint"><summary>Como criar a chave (uma vez só)</summary>
+        <ol>
+          <li>Abra <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>.</li>
+          <li>Nome: <b>HQ</b>. Validade: a maior que tiver (ou "No expiration").</li>
+          <li>Em <b>Repository access</b>, escolha <b>Only select repositories</b> e marque <b>hq-dados</b>.</li>
+          <li>Em <b>Permissions → Repository permissions → Contents</b>, escolha <b>Read and write</b>.</li>
+          <li>Clique em <b>Generate token</b>, copie a chave e cole aqui (no PC e no tablet).</li>
+        </ol>
+        A chave só abre o <b>hq-dados</b> e fica guardada só neste aparelho.
+      </details>
+    </div>
     <div class="bm-box" id="bm-box">
       <h2>⭐ Botão "Copiar letra" (no computador)</h2>
       <p class="hint">Com ele você não precisa selecionar a letra: na página da música no letras.mus.br, um clique copia só a letra.</p>
@@ -595,7 +631,10 @@ function load() {
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.songs) return d; } catch (e) {}
   return { songs: [], sets: [], fs: 28, theme: 'dark', speed: 30 };
 }
-function save() { localStorage.setItem(KEY, JSON.stringify(db)); }
+function save() {
+  localStorage.setItem(KEY, JSON.stringify(db));
+  if (typeof onDataSaved === 'function') onDataSaved();
+}
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function norm(s) { return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
 function song(id) { return db.songs.find(s => s.id === id); }
@@ -1150,10 +1189,123 @@ $('m-check').onclick = checkReport;
 $('check-report').onclick = e => { const b = e.target.closest('[data-id]'); if (!b) return;
   const s = song(b.dataset.id); delete s.copiedFrom; save(); openSong([{ id: s.id }], 0, null); };
 
+// ---------- sincronização (repositório privado no GitHub) ----------
+// Os dados (músicas, letras, setlists) vão para um arquivo num repositório PRIVADO.
+// Preferências do aparelho (tamanho da letra, tema...) não sincronizam.
+const SYNC_CFG = 'hq-sync';
+const DEVICE_KEYS = ['fs', 'theme', 'speed', 'fillAuto'];
+let sync = (() => { try { return JSON.parse(localStorage.getItem(SYNC_CFG)) || {}; } catch (e) { return {}; } })();
+sync.repo = sync.repo || 'roxila/hq-dados'; sync.path = sync.path || 'dados.json';
+let lastPayload = null, pushTimer = null, syncBusy = false, applying = false;
+function saveSyncCfg() { localStorage.setItem(SYNC_CFG, JSON.stringify(sync)); }
+function payloadStr() { const p = {}; for (const k in db) if (!DEVICE_KEYS.includes(k)) p[k] = db[k]; return JSON.stringify(p); }
+function b64enc(str) { const bytes = new TextEncoder().encode(str); let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(bin); }
+function b64dec(b64) { const bin = atob(b64.replace(/\s/g, '')); const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); return new TextDecoder().decode(bytes); }
+function syncUI(state, msg) {
+  const chip = $('sync-chip');
+  chip.classList.toggle('hidden', !sync.token);
+  chip.className = 'sync-chip' + (sync.token ? '' : ' hidden') + (state ? ' ' + state : '');
+  chip.textContent = state === 'busy' ? 'sincronizando' : state === 'err' ? '⚠ sem sincronizar' :
+    sync.dirty ? '☁ alterações a enviar' : '☁ sincronizado';
+  $('sync-status').textContent = msg || (sync.token ? `Última sincronização: ${sync.at ? new Date(sync.at).toLocaleString('pt-BR') : 'nunca'}` : 'Sincronização desligada.');
+  $('sync-repo-label').textContent = sync.repo;
+}
+async function gh(method, url, body) {
+  const r = await fetch('https://api.github.com/repos/' + sync.repo + url, { method, cache: 'no-store',
+    headers: { Authorization: 'Bearer ' + sync.token, Accept: 'application/vnd.github+json' }, body: body && JSON.stringify(body) });
+  if (r.status === 404) return { status: 404 };
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.message || ('erro ' + r.status)); e.status = r.status; throw e; }
+  return j;
+}
+async function fetchRemote() {
+  const meta = await gh('GET', '/contents/' + sync.path);
+  if (meta.status === 404) return null;
+  let text = meta.content ? b64dec(meta.content) : b64dec((await gh('GET', '/git/blobs/' + meta.sha)).content);
+  return { sha: meta.sha, data: JSON.parse(text) };
+}
+function applyRemote(remote) {
+  applying = true;
+  const prefs = {}; DEVICE_KEYS.forEach(k => { if (k in db) prefs[k] = db[k]; });
+  const d = remote.data; DEVICE_KEYS.forEach(k => delete d[k]);
+  db = Object.assign({ songs: [], sets: [] }, d, prefs);
+  migrate(); cleanup(); importProntos();
+  localStorage.setItem(KEY, JSON.stringify(db));
+  applying = false;
+  lastPayload = payloadStr();
+  sync.sha = remote.sha; sync.dirty = false; sync.at = Date.now(); saveSyncCfg();
+  renderHome(); if (viewSet && !$('v-setview').classList.contains('hidden')) openSetView(viewSet, false);
+}
+async function pullNow(manual) {
+  if (!sync.token || syncBusy) return;
+  syncBusy = true; syncUI('busy');
+  try {
+    const remote = await fetchRemote();
+    if (!remote) { syncBusy = false; return pushNow(true); }
+    if (remote.sha === sync.sha && !manual) { syncUI(); return; }
+    if (sync.dirty && remote.sha !== sync.sha &&
+        !confirm('O outro aparelho também mudou o HQ.\n\nOK = baixar as mudanças do outro aparelho (as deste aparelho que não foram enviadas se perdem)\nCancelar = manter este aparelho e enviar por cima')) {
+      sync.sha = remote.sha; saveSyncCfg(); syncBusy = false; return pushNow(true);
+    }
+    applyRemote(remote); sync.dirty = false; saveSyncCfg();
+    if (manual) toast('Dados baixados do GitHub.');
+    syncUI('ok');
+  } catch (e) { syncUI('err', 'Erro ao sincronizar: ' + (e.status === 401 ? 'chave inválida ou vencida.' : e.message)); }
+  finally { syncBusy = false; }
+}
+async function pushNow(manual) {
+  if (!sync.token || syncBusy) return;
+  if (!navigator.onLine) { syncUI(); return; }
+  syncBusy = true; syncUI('busy');
+  try {
+    const body = { message: 'HQ: atualização ' + new Date().toLocaleString('pt-BR'), content: b64enc(payloadStr()) };
+    if (sync.sha) body.sha = sync.sha;
+    let res;
+    try { res = await gh('PUT', '/contents/' + sync.path, body); }
+    catch (e) {
+      if (e.status !== 409 && e.status !== 422) throw e;
+      // o arquivo mudou no GitHub (outro aparelho): decide antes de sobrescrever
+      syncBusy = false; sync.dirty = true; saveSyncCfg(); return pullNow(false);
+    }
+    sync.sha = res.content.sha; sync.dirty = false; sync.at = Date.now(); saveSyncCfg();
+    if (manual) toast('Enviado para o GitHub.');
+    syncUI('ok');
+  } catch (e) { syncUI('err', 'Erro ao enviar: ' + (e.status === 401 ? 'chave inválida ou vencida.' : e.message)); }
+  finally { syncBusy = false; }
+}
+// chamado a cada save(): se os dados mudaram de verdade, envia alguns segundos depois
+function onDataSaved() {
+  if (applying || !sync.token) return;
+  const p = payloadStr();
+  if (lastPayload === null) { lastPayload = p; return; } // abertura do app: não é uma mudança sua
+  if (p === lastPayload) return;
+  lastPayload = p; sync.dirty = true; saveSyncCfg(); syncUI();
+  clearTimeout(pushTimer); pushTimer = setTimeout(() => pushNow(false), 4000);
+}
+$('sync-save').onclick = async () => {
+  const t = $('sync-token').value.trim(); if (!t) return toast('Cole a chave do GitHub.');
+  sync.token = t; saveSyncCfg(); $('sync-token').value = '';
+  try { await gh('GET', ''); } catch (e) { syncUI('err', e.status === 401 || e.status === 403 ? 'Essa chave não abre o hq-dados. Confira as permissões.' : 'Erro: ' + e.message); return; }
+  if (sync.dirty === undefined) sync.dirty = false;
+  // primeira vez neste aparelho: baixa o que está no GitHub
+  sync.sha = null; await pullNow(true);
+};
+$('sync-pull').onclick = () => pullNow(true);
+$('sync-push').onclick = () => pushNow(true);
+$('sync-off').onclick = () => { if (!confirm('Desligar a sincronização neste aparelho? Os dados continuam aqui.')) return;
+  sync = { repo: sync.repo, path: sync.path }; saveSyncCfg(); syncUI(); };
+$('sync-chip').onclick = () => sync.dirty ? pushNow(true) : pullNow(true);
+window.addEventListener('online', () => sync.dirty ? pushNow(false) : pullNow(false));
+document.addEventListener('visibilitychange', () => { if (!document.hidden && sync.token && navigator.onLine) (sync.dirty ? pushNow(false) : pullNow(false)); });
+
 // ---------- início ----------
 if (!localStorage.getItem(KEY)) { addSeed(); db.mig1 = true; db.mig2 = true; db.mig3 = true; }
 migrate(); cleanup(); importProntos();
 applyTheme(); applyFs(); renderHome(true);
+lastPayload = payloadStr(); syncUI();
+if (sync.token && navigator.onLine) (sync.dirty ? pushNow(false) : pullNow(false));
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
