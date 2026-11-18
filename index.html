@@ -363,6 +363,20 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   #sync-box details { margin-top: 10px; } #sync-box summary { cursor: pointer; color: var(--accent); font-weight: 700; }
   #sync-box a { color: var(--accent); }
+  /* posição no show (tela da letra) */
+  #read-pos { display: inline-flex; align-items: stretch; gap: 0; padding: 0; overflow: hidden; border: 0; border-radius: 12px;
+    background: var(--panel2); box-shadow: 0 0 0 1.5px var(--chip, var(--accent)), 0 4px 16px color-mix(in srgb, var(--chip, var(--accent)) 35%, transparent); }
+  .rp-block { display: flex; align-items: center; padding: 6px 12px; background: var(--chip, var(--accent)); color: #fff;
+    font-weight: 900; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; }
+  .rp-num { display: flex; align-items: baseline; gap: 1px; padding: 4px 12px; color: var(--text); }
+  .rp-num b { font-size: 24px; font-weight: 900; line-height: 1.1; }
+  .rp-num small { font-size: 14px; color: var(--muted); font-weight: 700; }
+  .read-next { flex-basis: 100%; text-align: center; font-size: 14px; color: var(--muted); padding: 2px 8px 4px; }
+  .read-next b { color: var(--text); }
+  .rn-block { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: #fff;
+    background: var(--chip, var(--accent)); padding: 2px 7px; border-radius: 5px; margin-left: 4px; }
+  .readbar { flex-wrap: wrap; }
+  @media (max-width: 600px) { .rp-block { font-size: 12px; padding: 4px 8px; } .rp-num b { font-size: 20px; } #read-title { font-size: 17px; } }
   .restore-hint { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
     padding: 16px 18px; margin-bottom: 16px; border-radius: 16px; border: 1px solid var(--accent);
     background: color-mix(in srgb, var(--accent) 12%, var(--panel)); animation: viewIn .35s both; }
@@ -440,6 +454,7 @@
     </div>
   </main>
   <div class="readbar">
+    <div class="read-next hidden" id="read-next"></div>
     <button id="prev">◀ Anterior</button>
     <button id="fs-minus">A−</button>
     <button id="fs-plus">A+</button>
@@ -734,7 +749,13 @@ function openSong(list, pos, setId, push = true, dir = 0) {
   $('v-read').style.setProperty('--chip', (st && st.color) || 'var(--accent)');
   $('read-progress').style.width = setId ? `${((pos + 1) / list.length) * 100}%` : '0';
   $('nolyr').classList.toggle('hidden', !!s.lyrics);
-  $('read-pos').textContent = setId ? `${it.block ? it.block + ' · ' : ''}${pos + 1}/${list.length}` : '';
+  $('read-pos').innerHTML = setId
+    ? `${it.block ? `<span class="rp-block">${esc(it.block)}</span>` : ''}<span class="rp-num"><b>${pos + 1}</b><small>/${list.length}</small></span>` : '';
+  $('read-pos').classList.toggle('hidden', !setId);
+  // "a seguir": nome da próxima música do show
+  const nx = setId && list[pos + 1] && song(list[pos + 1].id);
+  $('read-next').innerHTML = nx ? `a seguir: <b>${esc(nx.title)}</b>${list[pos + 1].block !== it.block && list[pos + 1].block ? ` <span class="rn-block">${esc(list[pos + 1].block)}</span>` : ''}` : '';
+  $('read-next').classList.toggle('hidden', !nx);
   $('read-back').textContent = setId ? '← Setlist' : '←';
   $('prev').disabled = pos <= 0; $('next').disabled = pos >= list.length - 1;
   $('prev').style.opacity = pos <= 0 ? .35 : 1; $('next').style.opacity = pos >= list.length - 1 ? .35 : 1;
