@@ -409,8 +409,10 @@
 
   @media (max-width: 600px) {
     main { padding-left: 16px; padding-right: 16px; }
-    .readbar { width: calc(100% - 16px); justify-content: space-between; }
-    .readbar #prev, .readbar #next { font-size: 0; min-width: 52px; }
+    .readbar { width: calc(100% - 16px); justify-content: space-between; gap: 4px; padding: 6px; }
+    /* todos os botões sempre numa linha só (dividem a largura), para o "Próxima" nunca cair para fora da tela */
+    .readbar button { flex: 1 1 0; min-width: 0; padding-left: 2px; padding-right: 2px; white-space: nowrap; font-size: 15px; }
+    .readbar #prev, .readbar #next { font-size: 0; flex-grow: 1.3; }
     .readbar #prev::before { content: '◀'; font-size: 16px; }
     .readbar #next::before { content: '▶'; font-size: 16px; }
     .sv-name { font-size: 30px; }
