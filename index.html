@@ -377,6 +377,20 @@
     background: var(--chip, var(--accent)); padding: 2px 7px; border-radius: 5px; margin-left: 4px; }
   .readbar { flex-wrap: wrap; }
   @media (max-width: 600px) { .rp-block { font-size: 12px; padding: 4px 8px; } .rp-num b { font-size: 20px; } #read-title { font-size: 17px; } }
+  /* faixas de início/fim de bloco dentro da tela da letra (não fazem parte do texto) */
+  .blk-band { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px;
+    font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; user-select: none; }
+  .blk-band.start { margin: 0 0 18px; color: #fff;
+    background: linear-gradient(90deg, var(--chip), color-mix(in srgb, var(--chip) 25%, transparent)); animation: viewIn .35s both; }
+  .blk-band.end { margin: 26px 0 0; color: var(--chip); background: color-mix(in srgb, var(--chip) 12%, transparent);
+    border: 2px dashed var(--chip); filter: brightness(1.25); }
+  .blk-band span { opacity: .85; } .blk-band b { font-size: 16px; }
+  .blk-band em { margin-left: auto; font-style: normal; font-weight: 700; font-size: 12px; opacity: .8; }
+  #v-read.in-set main { border-left: 4px solid var(--chip); padding-left: 22px; }
+  #lyrics { padding-bottom: 0; }
+  #v-read main { padding-bottom: 45vh; } /* espaço para a última linha não ficar atrás dos botões */
+  @keyframes blkPop { 0% { transform: scale(1); } 35% { transform: scale(1.18); } 100% { transform: scale(1); } }
+  #read-pos.blk-changed { animation: blkPop .5s cubic-bezier(.2,.9,.3,1.3); }
   .restore-hint { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
     padding: 16px 18px; margin-bottom: 16px; border-radius: 16px; border: 1px solid var(--accent);
     background: color-mix(in srgb, var(--accent) 12%, var(--panel)); animation: viewIn .35s both; }
@@ -443,7 +457,9 @@
   </header>
   <main>
     <p id="read-artist"></p>
+    <div class="blk-band start hidden" id="blk-start"></div>
     <div id="lyrics"></div>
+    <div class="blk-band end hidden" id="blk-end"></div>
     <div id="nolyr" class="nolyr hidden">
       Esta música ainda não tem letra.
       <div class="row">
@@ -736,7 +752,7 @@ $('fab').onclick = () => tab === 'songs' ? openSongEditor(null) : openSetEditor(
 // ---------- leitura ----------
 // list: [{ id, block? }], pos: posição atual
 function openSong(list, pos, setId, push = true, dir = 0) {
-  ctx = { list, pos, setId, songId: list[pos].id };
+  ctx = { list, pos, setId, songId: list[pos].id, prevBlock: push ? undefined : ctx.prevBlock };
   const it = list[pos], s = song(it.id);
   $('read-title').textContent = s.title;
   $('read-artist').textContent = s.artist || '';
@@ -746,7 +762,18 @@ function openSong(list, pos, setId, push = true, dir = 0) {
   ly.classList.remove('lyr-in'); void ly.offsetWidth; ly.classList.add('lyr-in');
   // barra de progresso do show, na cor do setlist
   const st = setId && db.sets.find(x => x.id === setId);
-  $('v-read').style.setProperty('--chip', (st && st.color) || 'var(--accent)');
+  $('v-read').style.setProperty('--chip', it.color || (st && st.color) || 'var(--accent)');
+  // faixas de início/fim de bloco (fora do texto da letra)
+  const nextB = list[pos + 1] && list[pos + 1].block;
+  $('blk-start').innerHTML = setId && it.first && it.block ? `<span>▶ Início</span><b>${esc(it.block)}</b>` : '';
+  $('blk-start').classList.toggle('hidden', !(setId && it.first && it.block));
+  $('blk-end').innerHTML = setId && it.last && it.block
+    ? `<span>■ Fim</span><b>${esc(it.block)}</b>${nextB ? `<em>próximo: ${esc(nextB)}</em>` : '<em>fim do show</em>'}` : '';
+  $('blk-end').classList.toggle('hidden', !(setId && it.last && it.block));
+  // trocou de bloco: a etiqueta "pula" na cor nova
+  const changed = ctx.prevBlock !== undefined && ctx.prevBlock !== it.bi;
+  ctx.prevBlock = it.bi;
+  if (changed) { const rp = $('read-pos'); rp.classList.remove('blk-changed'); void rp.offsetWidth; rp.classList.add('blk-changed'); }
   $('read-progress').style.width = setId ? `${((pos + 1) / list.length) * 100}%` : '0';
   $('nolyr').classList.toggle('hidden', !!s.lyrics);
   $('read-pos').innerHTML = setId
@@ -754,7 +781,8 @@ function openSong(list, pos, setId, push = true, dir = 0) {
   $('read-pos').classList.toggle('hidden', !setId);
   // "a seguir": nome da próxima música do show
   const nx = setId && list[pos + 1] && song(list[pos + 1].id);
-  $('read-next').innerHTML = nx ? `a seguir: <b>${esc(nx.title)}</b>${list[pos + 1].block !== it.block && list[pos + 1].block ? ` <span class="rn-block">${esc(list[pos + 1].block)}</span>` : ''}` : '';
+  $('read-next').innerHTML = nx ? `a seguir: <b>${esc(nx.title)}</b>${list[pos + 1].block !== it.block && list[pos + 1].block ? ` <span class="rn-block" style="background:${list[pos + 1].color}">${esc(list[pos + 1].block)}</span>` : ''}` : '';
+  $('v-read').classList.toggle('in-set', !!setId);
   $('read-next').classList.toggle('hidden', !nx);
   $('read-back').textContent = setId ? '← Setlist' : '←';
   $('prev').disabled = pos <= 0; $('next').disabled = pos >= list.length - 1;
@@ -885,7 +913,16 @@ function upgradeSet(st) {
 }
 // lista "achatada" das músicas do setlist, com o nome do bloco de cada uma
 function setSongs(st) {
-  return st.blocks.flatMap(b => b.items.filter(it => song(it.id)).map(it => ({ id: it.id, block: b.name })));
+  return st.blocks.flatMap((b, bi) => {
+    const its = b.items.filter(it => song(it.id));
+    return its.map((it, i) => ({ id: it.id, block: b.name, bi, color: blockColor(st, bi),
+      first: i === 0, last: i === its.length - 1 }));
+  });
+}
+// cada bloco tem a sua cor: começa na cor do setlist e vai andando pela paleta
+function blockColor(st, bi) {
+  const start = Math.max(0, COLORS.indexOf(st.color || COLORS[0]));
+  return COLORS[(start + bi) % COLORS.length];
 }
 let viewSet = null;
 function openSetView(id, push = true) {
@@ -895,7 +932,7 @@ function openSetView(id, push = true) {
   $('sv-date').textContent = st.date ? '📅 ' + fmtDate(st.date) : '';
   $('v-setview').style.setProperty('--chip', st.color || COLORS[0]);
   let n = 0;
-  $('sv-blocks').innerHTML = st.blocks.map(b => `<div class="sv-block">
+  $('sv-blocks').innerHTML = st.blocks.map((b, bi) => `<div class="sv-block" style="--chip:${blockColor(st, bi)}">
       ${b.name ? `<div class="chip">${esc(b.name)}</div>` : ''}
       <div class="sv-items">${b.items.map(it => {
         const s = song(it.id); if (!s) return '';
