@@ -400,7 +400,10 @@
   .read-note .rn-ico { flex: none; }
   .sv-songnote { display: block; margin-top: 2px; font-size: 14px; font-weight: 700; color: var(--note); }
   .se-item .t { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-  .se-item .se-note { width: 100%; font-size: 14px; padding: 6px 10px; color: var(--note); }
+  .se-item .se-note { width: 100%; font: inherit; font-size: 14px; line-height: 1.4; padding: 6px 10px; color: var(--note);
+    resize: none; overflow: hidden; min-height: 34px; }
+  /* na lista do setlist, nota longa aparece em até 2 linhas (completa na letra) */
+  .sv-songnote { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; }
   #v-read.in-set .read-body { border-left: 4px solid var(--chip); padding-left: 18px; padding-bottom: 4px; }
   #lyrics { padding-bottom: 0; }
   #v-read main { padding-bottom: 45vh; } /* espaço para a última linha não ficar atrás dos botões */
@@ -1046,14 +1049,18 @@ function renderSetEditor() {
         const btns = `<button data-act="up" data-b="${bi}" data-i="${ii}">↑</button><button data-act="down" data-b="${bi}" data-i="${ii}">↓</button><button data-act="rm" data-b="${bi}" data-i="${ii}">✕</button>`;
         const s = song(it.id);
         return `<div class="se-item"><div class="t">${esc(s ? s.title : '(música apagada)')}
-          <input type="text" class="se-note" data-nb="${bi}" data-ni="${ii}" value="${esc(it.note || '')}" placeholder="📝 Nota (opcional) — ex.: entra só voz e bateria" maxlength="200"></div>${btns}</div>`;
+          <textarea class="se-note" rows="1" data-nb="${bi}" data-ni="${ii}" placeholder="📝 Nota (opcional) — ex.: entra só voz e bateria" maxlength="2000">${esc(it.note || '')}</textarea></div>${btns}</div>`;
       }).join('') || '<div class="hint">Nenhuma música neste bloco ainda.</div>'}</div>
       <div class="se-add">
         <button class="primary" data-act="addsong" data-b="${bi}">＋ Música</button>
       </div>
     </div>`).join('');
+  $('se-blocks').querySelectorAll('.se-note').forEach(growNote);
 }
+// o campo da nota cresce conforme o texto (aceita várias linhas)
+function growNote(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; }
 $('se-blocks').addEventListener('input', e => {
+  if (e.target.classList.contains('se-note')) growNote(e.target);
   const d = e.target.dataset;
   if (d.bname !== undefined) draft.blocks[+d.bname].name = e.target.value;
   if (d.nb !== undefined) { const it = draft.blocks[+d.nb].items[+d.ni]; const v = e.target.value; if (v.trim()) it.note = v; else delete it.note; }
