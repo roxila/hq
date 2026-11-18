@@ -382,6 +382,12 @@
     font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; user-select: none; }
   .blk-band.start { margin: 0 0 18px; color: #fff;
     background: linear-gradient(90deg, var(--chip), color-mix(in srgb, var(--chip) 25%, transparent)); animation: viewIn .35s both; }
+  /* "última do bloco": listrada, para diferenciar do início */
+  .blk-band.start.last { color: #fff; background:
+      repeating-linear-gradient(135deg, color-mix(in srgb, var(--chip) 90%, #000) 0 12px, color-mix(in srgb, var(--chip) 70%, #000) 12px 24px);
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--chip) 60%, #fff); animation: viewIn .35s both, lastPulse 2s ease-in-out 2 .4s; }
+  @keyframes lastPulse { 50% { filter: brightness(1.35); } }
+  .blk-band.start em { color: #fff; opacity: .9; }
   .blk-band.end { margin: 26px 0 0; color: var(--chip); background: color-mix(in srgb, var(--chip) 12%, transparent);
     border: 2px dashed var(--chip); filter: brightness(1.25); }
   .blk-band span { opacity: .85; } .blk-band b { font-size: 16px; }
@@ -767,8 +773,14 @@ function openSong(list, pos, setId, push = true, dir = 0) {
   $('v-read').style.setProperty('--chip', it.color || (st && st.color) || 'var(--accent)');
   // faixas de início/fim de bloco (fora do texto da letra)
   const nextB = list[pos + 1] && list[pos + 1].block;
-  $('blk-start').innerHTML = setId && it.first && it.block ? `<span>▶ Início</span><b>${esc(it.block)}</b>` : '';
-  $('blk-start').classList.toggle('hidden', !(setId && it.first && it.block));
+  // faixa do topo: início do bloco, última do bloco, ou as duas (bloco de uma música só)
+  const top = !setId || !it.block ? '' :
+    it.first && it.last ? `<span>▶ Bloco de uma música</span><b>${esc(it.block)}</b><em>${nextB ? 'depois: ' + esc(nextB) : 'fim do show'}</em>` :
+    it.first ? `<span>▶ Início</span><b>${esc(it.block)}</b>` :
+    it.last ? `<span>⚑ Última do bloco</span><b>${esc(it.block)}</b><em>${nextB ? 'depois: ' + esc(nextB) : 'última do show'}</em>` : '';
+  $('blk-start').innerHTML = top;
+  $('blk-start').classList.toggle('hidden', !top);
+  $('blk-start').classList.toggle('last', !!(setId && it.last && !it.first));
   $('blk-end').innerHTML = setId && it.last && it.block
     ? `<span>■ Fim</span><b>${esc(it.block)}</b>${nextB ? `<em>próximo: ${esc(nextB)}</em>` : '<em>fim do show</em>'}` : '';
   $('blk-end').classList.toggle('hidden', !(setId && it.last && it.block));
